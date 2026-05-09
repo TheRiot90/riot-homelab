@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riot Homelab Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2234;
+    --border: #1e2d45;
+    --accent: #3b82f6;
+    --accent2: #06b6d4;
+    --accent3: #8b5cf6;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --text-muted: #334155;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  .header .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Section labels */
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    padding-left: 4px;
+  }
+
+  /* Layer system */
+  .layer {
+    margin-bottom: 16px;
+  }
+
+  .layer-inner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+  }
+
+  .layer-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* Internet layer */
+  .layer-internet .layer-inner {
+    border-color: rgba(239,68,68,0.3);
+    background: linear-gradient(135deg, rgba(239,68,68,0.05) 0%, var(--surface) 50%);
+  }
+
+  /* Network layer */
+  .layer-network .layer-inner {
+    border-color: rgba(59,130,246,0.3);
+    background: linear-gradient(135deg, rgba(59,130,246,0.05) 0%, var(--surface) 50%);
+  }
+
+  /* Services layer */
+  .layer-services .layer-inner {
+    border-color: rgba(16,185,129,0.3);
+    background: linear-gradient(135deg, rgba(16,185,129,0.05) 0%, var(--surface) 50%);
+  }
+
+  /* Game server layer */
+  .layer-game .layer-inner {
+    border-color: rgba(139,92,246,0.3);
+    background: linear-gradient(135deg, rgba(139,92,246,0.05) 0%, var(--surface) 50%);
+  }
+
+  /* Storage layer */
+  .layer-storage .layer-inner {
+    border-color: rgba(245,158,11,0.3);
+    background: linear-gradient(135deg, rgba(245,158,11,0.05) 0%, var(--surface) 50%);
+  }
+
+  /* Cards grid */
+  .cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .cards-center {
+    justify-content: center;
+  }
+
+  /* Individual cards */
+  .card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-width: 120px;
+    flex: 0 0 auto;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .card.blue::after { background: var(--accent); }
+  .card.cyan::after { background: var(--accent2); }
+  .card.green::after { background: var(--green); }
+  .card.purple::after { background: var(--accent3); }
+  .card.orange::after { background: var(--orange); }
+  .card.red::after { background: var(--red); }
+
+  .card-icon {
+    font-size: 18px;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .card-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .card-desc {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  /* Status dots */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.blue { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot.orange { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+  .dot.purple { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+
+  /* Arrow connectors */
+  .connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    position: relative;
+    margin: 0;
+  }
+
+  .connector-line {
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(to bottom, var(--border), var(--border));
+    position: relative;
+  }
+
+  .connector-label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    z-index: 2;
+  }
+
+  /* Big connector with arrow */
+  .arrow-down {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 20px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .arrow-down::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+    z-index: 0;
+  }
+
+  .arrow-down span {
+    background: var(--bg);
+    padding: 0 8px;
+    z-index: 1;
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 20px;
+  }
+
+  /* Wide card for server */
+  .card.wide {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .card-specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .spec-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  /* Two column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Sub-layer inside a card */
+  .sub-layer {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 10px;
+  }
+
+  .sub-layer-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .sub-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .sub-card {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .sub-card .dot { width: 5px; height: 5px; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .legend-bar {
+    width: 20px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  /* Phase badge */
+  .phase-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  /* Planned badge */
+  .planned {
+    opacity: 0.4;
+    filter: grayscale(0.5);
+  }
+
+  .planned-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    border: 1px dashed var(--text-muted);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 4px;
+  }
+
+  /* Tailscale tunnel visual */
+  .tunnel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(139,92,246,0.08);
+    border: 1px dashed rgba(139,92,246,0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-top: 10px;
+  }
+
+  .tunnel-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent3);
+    white-space: nowrap;
+  }
+
+  .tunnel-devices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tunnel-device {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    background: rgba(139,92,246,0.1);
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+  }
+
+  @media (max-width: 640px) {
+    .two-col { grid-template-columns: 1fr; }
+    .header h1 { font-size: 24px; }
+    .cards { gap: 8px; }
+    .card { min-width: 100px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="label">infrastructure documentation</div>
+    <h1>Riot Homelab Architecture</h1>
+    <div class="subtitle">ubuntu 24.04 lts · docker · tailscale · arma3 · phase 1</div>
+  </div>
+
+  <!-- Internet / External Access -->
+  <div class="layer layer-internet">
+    <div class="section-label">&#9654; external access layer</div>
+    <div class="layer-inner">
+      <div class="cards cards-center">
+        <div class="card red">
+          <span class="card-icon">🌐</span>
+          <div class="card-name">Public Internet</div>
+          <div class="card-desc">Altice / Optimum ISP</div>
+        </div>
+        <div class="card purple">
+          <span class="card-icon">🔒</span>
+          <div class="card-name">Tailscale VPN</div>
+          <div class="card-desc">WireGuard · E2E encrypted</div>
+        </div>
+        <div class="card blue">
+          <span class="card-icon">📱</span>
+          <div class="card-name">Remote Devices</div>
+          <div class="card-desc">laptop · phone · work PC</div>
+        </div>
+      </div>
+      <div class="tunnel">
+        <div class="tunnel-label">🔐 Tailscale mesh ·</div>
+        <div class="tunnel-devices">
+          <div class="tunnel-device">riot-homelab.tail0e5d8d.ts.net</div>
+          <div class="tunnel-device">Ubuntu laptop</div>
+          <div class="tunnel-device">Android phone</div>
+          <div class="tunnel-device">Girlfriend's phone</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><span>↓ ISP gateway · 192.168.1.1</span></div>
+
+  <!-- Network Layer -->
+  <div class="layer layer-network">
+    <div class="section-label">&#9654; network layer</div>
+    <div class="layer-inner">
+      <div class="cards cards-center">
+        <div class="card blue">
+          <span class="card-icon">🔌</span>
+          <div class="card-name">Altice Gateway</div>
+          <div class="card-desc">ISP modem/router · locked</div>
+        </div>
+        <div class="card cyan">
+          <span class="card-icon">🛡️</span>
+          <div class="card-name">Pi-hole</div>
+          <div class="card-desc">DNS · ad block · local DNS</div>
+          <div class="card-desc" style="margin-top:4px">192.168.1.200:8080</div>
+        </div>
+        <div class="card cyan">
+          <span class="card-icon">🔀</span>
+          <div class="card-name">Nginx Proxy Manager</div>
+          <div class="card-desc">reverse proxy · SSL</div>
+          <div class="card-desc" style="margin-top:4px">*.riot-homelab → services</div>
+        </div>
+      </div>
+      <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">Local DNS records:</span>
+        <span class="sub-card">jellyfin.riot-homelab</span>
+        <span class="sub-card">immich.riot-homelab</span>
+        <span class="sub-card">portainer.riot-homelab</span>
+        <span class="sub-card">pihole.riot-homelab</span>
+        <span class="sub-card">glance.riot-homelab</span>
+        <span class="sub-card">npm.riot-homelab</span>
+        <span class="sub-card">vaultwarden.riot-homelab</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><span>↓ LAN · 192.168.1.200</span></div>
+
+  <!-- Server Hardware -->
+  <div class="layer">
+    <div class="section-label">&#9654; server hardware</div>
+    <div class="layer-inner" style="border-color:rgba(100,116,139,0.3)">
+      <div class="cards">
+        <div class="card wide blue">
+          <span class="card-icon">💻</span>
+          <div class="card-name">Girlfriend's PC (Temporary Server)</div>
+          <div class="card-desc">Ubuntu 24.04 LTS dual boot · static IP 192.168.1.200</div>
+          <div class="card-specs">
+            <span class="spec-tag">i5-12400F</span>
+            <span class="spec-tag">32GB DDR4</span>
+            <span class="spec-tag">1TB NVMe SSD</span>
+            <span class="spec-tag">RX 6650 XT</span>
+            <span class="spec-tag">Intel Quick Sync</span>
+          </div>
+        </div>
+        <div class="card orange">
+          <span class="card-icon">💾</span>
+          <div class="card-name">External USB Drive</div>
+          <div class="card-desc">1TB · ext4 · /mnt/external</div>
+          <div class="card-desc" style="margin-top:4px">Immich photo overflow</div>
+          <div class="card-desc">temporary solution</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><span>↓ Docker Engine</span></div>
+
+  <!-- Docker Services -->
+  <div class="layer layer-services">
+    <div class="section-label">&#9654; docker services · /home/riot/homelab/</div>
+    <div class="layer-inner">
+      <div class="two-col">
+
+        <!-- Media & Files -->
+        <div>
+          <div class="sub-layer">
+            <div class="sub-layer-label">📺 Media & Photos</div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot green"></span>Jellyfin :8096</div>
+              <div class="sub-card"><span class="dot green"></span>Immich :2283</div>
+            </div>
+            <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">
+              media → /homelab/jellyfin/ · photos → /mnt/external/immich-data
+            </div>
+          </div>
+
+          <div class="sub-layer" style="margin-top:8px">
+            <div class="sub-layer-label">🔐 Security & Access</div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot orange"></span>Vaultwarden :8181</div>
+              <div class="sub-card"><span class="dot orange"></span>Tailscale</div>
+            </div>
+            <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">
+              Vaultwarden needs HTTPS · pending DeSEC.io setup
+            </div>
+          </div>
+
+          <div class="sub-layer" style="margin-top:8px">
+            <div class="sub-layer-label">🎙️ Voice Comms</div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot green"></span>TeamSpeak 3 :9987</div>
+            </div>
+            <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">
+              required for TFAR mod · 32 slot free license
+            </div>
+          </div>
+        </div>
+
+        <!-- Management & Monitoring -->
+        <div>
+          <div class="sub-layer">
+            <div class="sub-layer-label">🛠️ Management</div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot green"></span>Portainer :9000</div>
+              <div class="sub-card"><span class="dot green"></span>Nginx Proxy Manager :81</div>
+              <div class="sub-card"><span class="dot green"></span>Watchtower</div>
+            </div>
+            <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">
+              Watchtower auto-updates all containers · 4AM daily
+            </div>
+          </div>
+
+          <div class="sub-layer" style="margin-top:8px">
+            <div class="sub-layer-label">📊 Monitoring & Dashboard</div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot green"></span>Uptime Kuma :3001</div>
+              <div class="sub-card"><span class="dot green"></span>Glance :8585</div>
+            </div>
+            <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">
+              Discord alerts on service up/down · all services monitored
+            </div>
+          </div>
+
+          <div class="sub-layer" style="margin-top:8px">
+            <div class="sub-layer-label">🤖 Planned</div>
+            <div class="sub-cards">
+              <div class="sub-card planned"><span class="dot blue"></span>Discord Bot <span class="planned-tag">soon</span></div>
+              <div class="sub-card planned"><span class="dot blue"></span>Filebrowser <span class="planned-tag">soon</span></div>
+            </div>
+            <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">
+              Discord bot in Python · cousin server management
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><span>↓ native systemd · /home/steam/arma3/</span></div>
+
+  <!-- Game Server -->
+  <div class="layer layer-game">
+    <div class="section-label">&#9654; arma 3 dedicated server · steam user · systemd managed</div>
+    <div class="layer-inner">
+      <div class="two-col">
+        <div>
+          <div class="cards">
+            <div class="card purple">
+              <span class="card-icon">🎮</span>
+              <div class="card-name">Arma 3 Server</div>
+              <div class="card-desc">arma3server_x64 · :2302 UDP</div>
+              <div class="card-desc" style="margin-top:4px">systemd · auto-start on boot</div>
+            </div>
+            <div class="card purple">
+              <span class="card-icon">🤖</span>
+              <div class="card-name">Headless Client</div>
+              <div class="card-desc">AI offload · auto-managed</div>
+              <div class="card-desc" style="margin-top:4px">starts/stops with players</div>
+            </div>
+          </div>
+          <div class="sub-layer">
+            <div class="sub-layer-label">Active Missions</div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot purple"></span>Antistasi Ultimate</div>
+              <div class="sub-card"><span class="dot purple"></span>Liberation RX</div>
+              <div class="sub-card"><span class="dot purple"></span>Impasse Total War</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="sub-layer" style="margin-top:0">
+            <div class="sub-layer-label">Modset System</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-bottom:6px">
+              current.txt → active modset → server + HC
+            </div>
+            <div class="sub-cards">
+              <div class="sub-card"><span class="dot purple"></span>antistasi.txt</div>
+              <div class="sub-card"><span class="dot purple"></span>impasse.txt</div>
+            </div>
+          </div>
+          <div class="sub-layer" style="margin-top:8px">
+            <div class="sub-layer-label">HC Monitor (hc_monitor.sh)</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim);line-height:1.6">
+              tail -f server_log.txt in real time<br>
+              regex [^dis]connected · filters Antistasi logs<br>
+              starts HC when players > 0 + mission loaded<br>
+              stops HC when players = 0
+            </div>
+          </div>
+          <div class="sub-layer" style="margin-top:8px">
+            <div class="sub-layer-label">Automated Backups</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">
+              cron · hourly · 168 backups retained (7 days)<br>
+              tar.gz of entire server profile dir
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mod list -->
+      <div class="sub-layer" style="margin-top:10px">
+        <div class="sub-layer-label">Installed Mods (24 total)</div>
+        <div class="sub-cards">
+          <div class="sub-card">@cba_a3</div>
+          <div class="sub-card">@cup_weapons</div>
+          <div class="sub-card">@cup_units</div>
+          <div class="sub-card">@cup_vehicles</div>
+          <div class="sub-card">@cup_terrains_core</div>
+          <div class="sub-card">@cup_terrains_maps</div>
+          <div class="sub-card">@antistasi</div>
+          <div class="sub-card">@enhanced_movement</div>
+          <div class="sub-card">@zeus_enhanced</div>
+          <div class="sub-card">@dui_squad_radar</div>
+          <div class="sub-card">@agc</div>
+          <div class="sub-card">@auto_viewdistance</div>
+          <div class="sub-card">+ 12 more</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><span>↓ storage</span></div>
+
+  <!-- Storage -->
+  <div class="layer layer-storage">
+    <div class="section-label">&#9654; storage</div>
+    <div class="layer-inner">
+      <div class="cards">
+        <div class="card orange">
+          <span class="card-icon">⚡</span>
+          <div class="card-name">NVMe SSD (Internal)</div>
+          <div class="card-desc">1TB Samsung 980 Pro</div>
+          <div class="card-desc" style="margin-top:4px">Ubuntu + Docker data</div>
+          <div class="card-desc">Arma 3 server + mods (~65GB)</div>
+        </div>
+        <div class="card orange">
+          <span class="card-icon">💾</span>
+          <div class="card-name">External USB (Temp)</div>
+          <div class="card-desc">1TB · /mnt/external</div>
+          <div class="card-desc" style="margin-top:4px">Immich photo library</div>
+          <div class="card-desc">~80GB+ growing</div>
+        </div>
+        <div class="card orange planned">
+          <span class="card-icon">🗄️</span>
+          <div class="card-name">NAS (Planned)</div>
+          <div class="card-desc">Unraid · 10-20TB</div>
+          <div class="card-desc" style="margin-top:4px">RAIDZ1 · ZFS</div>
+          <div class="card-desc">Phase 3 · ~4-6 months</div>
+        </div>
+        <div class="card blue planned">
+          <span class="card-icon">🌐</span>
+          <div class="card-name">Offsite Backup (Planned)</div>
+          <div class="card-desc">Encrypted · client-side</div>
+          <div class="card-desc" style="margin-top:4px">Backblaze B2 or</div>
+          <div class="card-desc">trusted family Pi</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="dot green"></div> Active service
+    </div>
+    <div class="legend-item">
+      <div class="dot orange"></div> In progress / needs attention
+    </div>
+    <div class="legend-item">
+      <div class="dot blue"></div> Planned (future phase)
+    </div>
+    <div class="legend-item">
+      <div class="dot purple"></div> Game server component
+    </div>
+    <div class="legend-item" style="margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">
+        Phase 1 of 4 · Ubuntu on girlfriend's PC · ~May 2026
+      </span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
