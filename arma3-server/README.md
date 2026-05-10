@@ -559,17 +559,7 @@ Same as antistasi but without @antistasi mod.
 
 ---
 
-## Discord Bot (Planned)
-
-A Discord bot is planned for cousin server management. Built with Python and discord.py, runs as a Docker container.
-
-| Command | Action |
-|---|---|
-| !status | Server status, player count, current modset |
-| !modset list | List available modsets |
-| !modset \<name\> | Switch modset and restart |
-| !restart | Restart the server |
-| !backup | Trigger manual backup |
+## Discord Bot (Built see arma-bot repo, https://github.com/TheRiot90/arma-bot)
 
 ---
 
