@@ -1,13 +1,6 @@
 # Riot's Arma 3 Dedicated Server
 
-My cousins and I play Arma 3 together. For years that meant one of us had to host — 
-which meant the server died the moment that person left, progress was inconsistent, 
-and sessions required coordination just to get the game running. This dedicated server 
-fixes all of that. It runs 24/7 on a home server, persists campaign progress between 
-sessions, and manages its own headless client automatically — starting AI offloading 
-when players connect and stopping it when they leave. My cousins can play whenever 
-they want without me being online, without anyone managing a host machine, and without 
-losing campaign progress. The server just runs.
+My cousins and I play Arma 3 together. For years that meant one of us had to host — which meant the server died the moment that person left, progress was inconsistent, and sessions required coordination just to get the game running. This dedicated server fixes all of that. It runs 24/7 on a home server, persists campaign progress between sessions, and manages its own headless client automatically — starting AI offloading when players connect and stopping it when they leave. My cousins can play whenever they want without me being online, without anyone managing a host machine, and without losing campaign progress. The server just runs.
 
 ---
 
@@ -27,7 +20,7 @@ losing campaign progress. The server just runs.
     current.txt      ← Tracks last used modset (auto-updated)
   start_server.sh    ← Start the server (reads current.txt for modset)
   start_hc.sh        ← Start the headless client (reads current.txt for modset)
-  hc_monitor.sh      ← Auto-manages HC based on player count
+  hc_monitor.sh      ← Auto-manages HC based on player count and mission state
   add_mod.sh         ← Script to add new mods
   remove_mod.sh      ← Script to remove mods
   add_mission.sh     ← Script to add new missions
@@ -106,15 +99,17 @@ The HC is managed entirely by the **HC Monitor** service. No manual intervention
 1. Monitor starts on boot alongside the server
 2. Monitor reads the server log in real time
 3. When a mission is loaded AND at least one real player is connected — HC starts automatically using current modset
-4. When last real player disconnects — HC stops automatically
-5. HC always uses the same modset as the server via `current.txt`
+4. When all players disconnect — HC stops automatically (mission remains marked active)
+5. When a player reconnects while a mission is still loaded — HC starts again automatically
+6. When the server returns to mission selection (`#missions`, vote, or mission end) — HC stops and mission is marked inactive until a new mission loads
+7. HC always uses the same modset as the server via `current.txt`
 
 ### Important Notes
 
 - HC connects as **headlessclient** — this is NOT counted as a player
 - Arma 3 briefly logs a disconnect/reconnect during role selection — this is normal and does not trigger HC stop
 - Antistasi Ultimate supports exactly ONE headless client
-- Always load a mission before the monitor will start the HC
+- The HC will not start until both a mission is loaded AND at least one player is connected — players sitting in the mission selection lobby do not trigger HC start
 
 ### HC Monitor Commands
 
@@ -218,10 +213,10 @@ Everything is automatic. Your cousins just connect and play.
 
 1. Server is always running — starts on boot
 2. Cousins connect and load into a mission
-3. HC Monitor detects players — starts HC automatically
+3. HC Monitor detects mission active + players connected — starts HC automatically
 4. Session runs with HC handling AI
-5. Last player disconnects
-6. HC Monitor stops HC automatically
+5. Last player disconnects — HC stops automatically
+6. Cousins reconnect next day — HC starts again automatically (mission still loaded)
 
 ### Switching Modsets Before a Session
 
@@ -402,7 +397,20 @@ All save files backed up automatically every hour.
 
 ## HC Monitor — Technical Notes
 
-The monitor uses these key techniques to accurately track player count:
+The monitor tracks two independent state variables and requires both conditions to be true before starting the HC:
+
+- **`MISSION_ACTIVE`** — true only after a mission has fully initialized; false in lobby or before any mission loads
+- **`PLAYER_COUNT`** — net count of real players currently connected
+
+The HC runs if and only if `MISSION_ACTIVE=true` AND `PLAYER_COUNT > 0`.
+
+| Situation | MISSION_ACTIVE | PLAYER_COUNT | HC |
+|---|---|---|---|
+| Mission running, players on | true | ≥1 | Running |
+| All players log off for the night | true | 0 | Stopped |
+| Player reconnects, mission still loaded | true | 1 | Started |
+| Admin runs `#missions` or mission ends | false | ≥1 | Stopped |
+| Server restart | false | 0 | Stopped |
 
 **Regex pattern `[^dis]connected`** — matches `connected` but NOT `disconnected`. This prevents disconnect events from being double-counted as connections.
 
@@ -410,13 +418,15 @@ The monitor uses these key techniques to accurately track player count:
 
 **Headless client filter `grep -vi "headless"`** — HC connects as `headlessclient` which contains `headless`. This prevents the HC from counting as a real player.
 
-**Baseline on startup** — on startup the monitor reads the log from the last `Game Port: 2302` line forward and calculates current player count. This means the monitor correctly handles players who were already connected before it started.
+**Baseline on startup** — on startup the monitor reads the log from the last `Game Port: 2302` line forward and calculates both current player count and mission state. This means the monitor correctly handles players and missions that were already active before it started.
+
+**Mission state tracking** — the monitor watches for the CBA `MISSIONINIT:` log line that appears for every mission when it finishes initializing. The HC will not start until this line is seen, preventing premature HC starts while players sit in the mission selection lobby.
+
+**Lobby-return detection** — the monitor watches for `Waiting for next game.` in the server log, which fires whenever the server returns to mission selection (admin `#missions` command, end-of-mission vote, or natural mission completion). This stops the HC and clears mission state immediately, even when players stay connected through the transition. A server restart (`Game Port: 2302`) also clears all state.
+
+**Mission remains active with zero players** — when all players disconnect for the night, `MISSION_ACTIVE` stays true. The HC stops because the player condition fails, but the moment anyone reconnects the HC starts again immediately without waiting for a new `MISSIONINIT:` line. Only `Waiting for next game.` or a server restart clears mission state.
 
 **Modset awareness** — the `start_hc` function reads `current.txt` at the moment it starts the HC. This means if you switch modsets the HC always loads the correct one.
-
-**Mission state tracking** — the monitor watches for the CBA MISSIONINIT: log line that appears for every mission when it finishes initializing. The HC will not start until this line is seen, preventing premature HC starts while players sit in the mission selection lobby.
-
-**Lobby-return detection** — the monitor watches for Waiting for next game. in the server log, which fires whenever the server returns to mission selection (admin #missions command, end-of-mission vote, or natural mission completion). This stops the HC immediately even when players stay connected through the transition. Player count dropping to zero serves as a fallback trigger for edge cases.
 
 ---
 
@@ -489,7 +499,7 @@ fi
 '
 ```
 
-Expected results with no players: Connected 0, Disconnected 0, Net 0.
+Expected results with no players and no mission: mission active NO, HC should be running NO, HC actually running NO.
 
 ---
 
@@ -559,7 +569,17 @@ Same as antistasi but without @antistasi mod.
 
 ---
 
-## Discord Bot (Built see arma-bot repo, https://github.com/TheRiot90/arma-bot)
+## Discord Bot (Planned)
+
+A Discord bot is planned for cousin server management. Built with Python and discord.py, runs as a Docker container.
+
+| Command | Action |
+|---|---|
+| !status | Server status, player count, current modset |
+| !modset list | List available modsets |
+| !modset \<name\> | Switch modset and restart |
+| !restart | Restart the server |
+| !backup | Trigger manual backup |
 
 ---
 
