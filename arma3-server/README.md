@@ -1,5 +1,16 @@
 # Riot's Arma 3 Dedicated Server
 
+My cousins and I play Arma 3 together. For years that meant one of us had to host — 
+which meant the server died the moment that person left, progress was inconsistent, 
+and sessions required coordination just to get the game running. This dedicated server 
+fixes all of that. It runs 24/7 on a home server, persists campaign progress between 
+sessions, and manages its own headless client automatically — starting AI offloading 
+when players connect and stopping it when they leave. My cousins can play whenever 
+they want without me being online, without anyone managing a host machine, and without 
+losing campaign progress. The server just runs.
+
+---
+
 ## Directory Structure
 
 ```
