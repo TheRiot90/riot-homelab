@@ -96,6 +96,8 @@ A few problems that weren't solved by copy-pasting a tutorial:
 
 **SteamCMD install location inconsistency** — `force_install_dir` in SteamCMD reliably sets the install path for `app_update` commands but inconsistently for `workshop_download_item` commands, causing mods to split across two directories. Solved by consolidating all workshop content post-download and building a modset system that references content by symlink rather than absolute path.
 
+**Arma 3 server monitoring** — Standard Uptime Kuma monitor types both failed. The Steam Game Server monitor requires SteamAPI which the dedicated server intentionally runs without — it returns `Steam API Key not found` regardless of server state. The TCP Port monitor fails because Arma 3 uses UDP not TCP — port 2302 refuses TCP connections even when the server is running. The solution was a Push monitor — a cron job that runs every minute, checks whether the arma3server systemd service is active, and sends a heartbeat to Uptime Kuma only when confirmed running. An additional lesson emerged: server-side scripts must use direct IP addresses rather than local DNS names. Pi-hole runs on the same machine it's resolving addresses for, causing split-horizon DNS issues where the server can't reliably resolve its own domain names.
+
 ---
 
 ## Roadmap
