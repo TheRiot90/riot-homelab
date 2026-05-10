@@ -94,7 +94,7 @@ The HC is managed entirely by the **HC Monitor** service. No manual intervention
 
 1. Monitor starts on boot alongside the server
 2. Monitor reads the server log in real time
-3. When first real player connects — HC starts automatically using current modset
+3. When a mission is loaded AND at least one real player is connected — HC starts automatically using current modset
 4. When last real player disconnects — HC stops automatically
 5. HC always uses the same modset as the server via `current.txt`
 
@@ -403,6 +403,10 @@ The monitor uses these key techniques to accurately track player count:
 
 **Modset awareness** — the `start_hc` function reads `current.txt` at the moment it starts the HC. This means if you switch modsets the HC always loads the correct one.
 
+**Mission state tracking** — the monitor watches for the CBA MISSIONINIT: log line that appears for every mission when it finishes initializing. The HC will not start until this line is seen, preventing premature HC starts while players sit in the mission selection lobby.
+
+**Lobby-return detection** — the monitor watches for Waiting for next game. in the server log, which fires whenever the server returns to mission selection (admin #missions command, end-of-mission vote, or natural mission completion). This stops the HC immediately even when players stay connected through the transition. Player count dropping to zero serves as a fallback trigger for edge cases.
+
 ---
 
 ## Verifying HC Monitor Works
@@ -412,21 +416,65 @@ Use this diagnostic to test monitor logic without starting it:
 ```bash
 sudo su - steam
 bash -c '
-LAST_START=$(grep -n "Game Port: 2302" /home/steam/arma3/server/server_log.txt | tail -1 | cut -d: -f1)
+LOG="/home/steam/arma3/server/server_log.txt"
+
+LAST_START=$(grep -n "Game Port: 2302" "$LOG" | tail -1 | cut -d: -f1)
 echo "Server started at log line: $LAST_START"
 echo ""
+
 echo "=== CONNECTIONS ==="
-tail -n +"$LAST_START" /home/steam/arma3/server/server_log.txt | grep -E "Player.*[^dis]connected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|"
+tail -n +"$LAST_START" "$LOG" | grep -E "Player.*[^dis]connected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|"
 echo ""
+
 echo "=== DISCONNECTIONS ==="
-tail -n +"$LAST_START" /home/steam/arma3/server/server_log.txt | grep "Player.*disconnected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|"
+tail -n +"$LAST_START" "$LOG" | grep "Player.*disconnected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|"
 echo ""
+
 echo "=== COUNTS ==="
-CONNECTED=$(tail -n +"$LAST_START" /home/steam/arma3/server/server_log.txt | grep -E "Player.*[^dis]connected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|" | wc -l)
-DISCONNECTED=$(tail -n +"$LAST_START" /home/steam/arma3/server/server_log.txt | grep "Player.*disconnected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|" | wc -l)
+CONNECTED=$(tail -n +"$LAST_START" "$LOG" | grep -E "Player.*[^dis]connected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|" | wc -l)
+DISCONNECTED=$(tail -n +"$LAST_START" "$LOG" | grep "Player.*disconnected" | grep -vi "headless" | grep -v "Antistasi" | grep -v "|" | wc -l)
 echo "Connected: $CONNECTED"
 echo "Disconnected: $DISCONNECTED"
 echo "Net player count: $((CONNECTED - DISCONNECTED))"
+echo ""
+
+echo "=== MISSION STATE ==="
+LOG_SLICE=$(tail -n +"$LAST_START" "$LOG")
+LAST_MISSIONINIT_LINE=$(echo "$LOG_SLICE" | grep -n "MISSIONINIT:"          | tail -1 | cut -d: -f1)
+LAST_LOBBY_LINE=$(      echo "$LOG_SLICE" | grep -n "Waiting for next game" | tail -1 | cut -d: -f1)
+LAST_MISSIONINIT_LINE=${LAST_MISSIONINIT_LINE:-0}
+LAST_LOBBY_LINE=${LAST_LOBBY_LINE:-0}
+
+if [ "$LAST_MISSIONINIT_LINE" -gt "$LAST_LOBBY_LINE" ]; then
+    MISSION_NAME=$(echo "$LOG_SLICE" | grep "MISSIONINIT:" | tail -1 | grep -oP "missionName=\K[^,]+")
+    echo "Mission active: YES ($MISSION_NAME)"
+else
+    echo "Mission active: NO (in lobby or pre-mission)"
+fi
+
+if [ "$LAST_LOBBY_LINE" -gt 0 ]; then
+    echo "Last lobby return at log slice line: $LAST_LOBBY_LINE"
+else
+    echo "Last lobby return: none since server start"
+fi
+echo ""
+
+echo "=== HC SHOULD BE RUNNING? ==="
+NET=$((CONNECTED - DISCONNECTED))
+[ "$NET" -lt 0 ] && NET=0
+if [ "$LAST_MISSIONINIT_LINE" -gt "$LAST_LOBBY_LINE" ] && [ "$NET" -gt 0 ]; then
+    echo "YES — mission active and $NET player(s) connected"
+else
+    echo "NO  — $([ "$LAST_MISSIONINIT_LINE" -le "$LAST_LOBBY_LINE" ] && echo "no active mission" || echo "no players connected")"
+fi
+echo ""
+
+echo "=== HC ACTUALLY RUNNING? ==="
+if pgrep -f "arma3server_x64.*headless" > /dev/null 2>&1; then
+    echo "YES — PID $(pgrep -f "arma3server_x64.*headless")"
+else
+    echo "NO"
+fi
 '
 ```
 
