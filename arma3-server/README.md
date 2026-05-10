@@ -1,6 +1,6 @@
 # Riot's Arma 3 Dedicated Server
 
-My cousins and I play Arma 3 together. For years that meant one of us had to host — which meant the server died the moment that person left, progress was inconsistent, and sessions required coordination just to get the game running. This dedicated server fixes all of that. It runs 24/7 on a home server, persists campaign progress between sessions, and manages its own headless client automatically — starting AI offloading when players connect and stopping it when they leave. My cousins can play whenever they want without me being online, without anyone managing a host machine, and without losing campaign progress. The server just runs.
+My cousins and I play Arma 3 together. For years that meant one of us had to host — which meant the server died the moment that person left, progress was inconsistent, and sessions required coordination just to get the game running. This dedicated server fixes all of that. It runs 24/7 on a home server, persists campaign progress between sessions, and manages its own headless client automatically — starting AI offloading when players connect to an active mission, and stopping it when they leave. My cousins can play whenever they want without me being online, without anyone managing a host machine, and without losing campaign progress. The server just runs.
 
 ---
 
@@ -395,6 +395,57 @@ All save files backed up automatically every hour.
 
 ---
 
+## Monitoring — Uptime Kuma
+
+The Arma 3 server is monitored via Uptime Kuma using a **Push monitor** with a cron job heartbeat. This approach was chosen after two other monitor types failed:
+
+- **Steam Game Server monitor** — requires SteamAPI which the dedicated server intentionally runs without. Returns `Steam API Key not found` and never goes green.
+- **TCP Port monitor on 2302** — fails because Arma 3 uses UDP not TCP. Returns `ECONNREFUSED` even when the server is running.
+
+The Push monitor is the most accurate option — the server actively reports its own health rather than being passively queried.
+
+### How It Works
+
+A cron job runs every minute as the riot user. It checks whether the `arma3server` systemd service is active and sends a heartbeat to Uptime Kuma only if it is. If the service stops the heartbeats stop and Uptime Kuma alerts via Discord after the configured retry window.
+
+### Cron Job Setup
+
+```bash
+# As riot user
+crontab -e
+```
+
+Add:
+
+```
+* * * * * systemctl is-active --quiet arma3server && curl -s "http://YOUR_SERVER_IP:3001/api/push/YOUR_PUSH_TOKEN" > /dev/null 2>&1
+```
+
+Replace `YOUR_PUSH_TOKEN` with the token from your Uptime Kuma Push monitor URL.
+
+### Important — Use IP Address Not DNS Name
+
+Server-side scripts must use the direct IP address rather than local DNS names like `uptime-kuma.riot-homelab`. This is a split-horizon DNS issue — the server can't reliably resolve its own domain names because it's asking Pi-hole (which runs on the same machine) to resolve an address that points back to itself. Always use `YOUR_SERVER_IP:3001` directly in cron jobs and scripts running on the homelab server.
+
+### Uptime Kuma Monitor Settings
+
+- **Type:** Push
+- **Friendly Name:** Arma 3 Server
+- **Heartbeat Interval:** 60 seconds
+- **Retries:** 3 (alerts after 3 missed heartbeats — ~3 minutes)
+
+### Verifying the Cron Job is Running
+
+```bash
+# Check cron is sending heartbeats
+grep CRON /var/log/syslog | tail -10
+
+# Manually trigger the heartbeat to test
+curl -s "http://YOUR_SERVER_IP:3001/api/push/YOUR_PUSH_TOKEN"
+```
+
+---
+
 ## HC Monitor — Technical Notes
 
 The monitor tracks two independent state variables and requires both conditions to be true before starting the HC:
@@ -644,6 +695,13 @@ bash /home/steam/arma3/fix_lowercase.sh
 cat /home/steam/arma3/modsets/current.txt
 echo "antistasi" > /home/steam/arma3/modsets/current.txt
 ```
+
+### Uptime Kuma Push Monitor Not Receiving Heartbeats
+
+- Verify cron job is in riot user's crontab: `crontab -l`
+- Verify the push URL uses IP address not DNS name — `http://YOUR_SERVER_IP:3001/api/push/YOUR_TOKEN`
+- Test manually: `curl -s "http://YOUR_SERVER_IP:3001/api/push/YOUR_TOKEN"`
+- Check arma3server is actually running: `systemctl is-active arma3server`
 
 ### Kill All Arma Processes
 
