@@ -1,5 +1,7 @@
 # Homelab — Docker Services
 
+These are the Docker services running on my home server. The goal was simple: stop paying for services I could self-host, own my own data, and build something I actually understood. Jellyfin replaced streaming subscriptions. Immich replaced Google Photos for my girlfriend's 42,000 photos and videos — files that represent years of memories with people who are no longer around. Pi-hole blocks ads and tracking for every device in the house without touching a single browser extension. Vaultwarden will eventually replace password reuse habits that I'm not proud of. Each service here solves a real problem. None of them send my data somewhere I don't control.
+
 All services run as Docker containers managed with Docker Compose. Each service has its own subdirectory containing a `docker-compose.yml` and where applicable an `.env.example` file.
 
 ---
