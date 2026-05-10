@@ -19,12 +19,6 @@ These aren't abstract problems. They're real, they affected real people I care a
 
 ---
 
-## Architecture
-
-[View Architecture Diagram](https://theriot90.github.io/riot-homelab/architecture.html)
-
----
-
 ## What's Running
 
 ### Infrastructure
