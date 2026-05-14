@@ -54,7 +54,7 @@ Running natively (not in Docker) as a dedicated `steam` system user, managed by 
 
 ## Architecture
 
-See [`architecture.html`](./architecture.html) for a visual diagram of the full stack.
+See [`architecture.html`](./docs/architecture.html) for a visual diagram of the full stack.
 
 The short version:
 
