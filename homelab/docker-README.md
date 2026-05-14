@@ -20,6 +20,7 @@ All services run as Docker containers managed with Docker Compose. Each service 
 | Watchtower | — | — | Automatic container updates |
 | Vaultwarden | vaultwarden.riot-homelab | 8181 | Self-hosted password manager |
 | TeamSpeak 3 | YOUR_SERVER_IP:9987 | 9987 UDP | Voice comms (TFAR support) |
+| Vikunja | vikunja.riot-homelab | 3456 | project management tool |
 
 ---
 
@@ -365,12 +366,45 @@ This token only appears once. Use it to claim server admin rights when connectin
 
 ---
 
+### Vikunja
+
+Self-hosted task manager. Replaces cloud services like Todoist, TickTick, or Microsoft To-Do. Supports Kanban boards, Gantt charts, due dates, reminders, and CalDAV sync for integration with external calendar apps.
+
+**Key configuration:**
+- Requires a .env file — copy .env.example and fill in values
+- Generate VIKUNJA_SERVICE_SECRET with openssl rand -base64 32
+- VIKUNJA_PUBLIC_URL must match the URL Vikunja is reachable at, including port if non-standard
+- Two containers: vikunja and vikunja_db (Postgres)
+
+**Start:**
+```bash
+cd vikunja
+cp .env.example .env
+# Edit .env with your values
+docker compose up -d
+```
+
+**Prep files before first start**
+```bash
+mkdir -p files db
+chown 1000 files db
+```
+
+**Note:**
+There is no default admin account. Register your account on first launch, then disable registration in docker compose file so no additional accounts can be created.
+```yaml
+VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
+```
+Then restart: `docker compose down && docker compose up -d`
+
+---
+
 ## Common Operations
 
 ### Start All Services
 
 ```bash
-for dir in jellyfin immich pihole nginx-proxy-manager portainer uptime-kuma glance watchtower vaultwarden teamspeak; do
+for dir in jellyfin immich pihole nginx-proxy-manager portainer uptime-kuma glance watchtower vaultwarden teamspeak vikunja; do
     echo "Starting $dir..."
     cd /home/riot/homelab/$dir && docker compose up -d
     cd /home/riot/homelab
@@ -380,7 +414,7 @@ done
 ### Stop All Services
 
 ```bash
-for dir in jellyfin immich pihole nginx-proxy-manager portainer uptime-kuma glance watchtower vaultwarden teamspeak; do
+for dir in jellyfin immich pihole nginx-proxy-manager portainer uptime-kuma glance watchtower vaultwarden teamspeak vikunja; do
     echo "Stopping $dir..."
     cd /home/riot/homelab/$dir && docker compose down
     cd /home/riot/homelab
