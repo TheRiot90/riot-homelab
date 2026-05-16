@@ -1,8 +1,8 @@
 # Riot Homelab
 
-A self-hosted home lab built from the ground up on a borrowed PC — running a media server, photo backup system, network-wide ad blocking, remote access, service monitoring, and a fully automated Arma 3 dedicated game server with headless client management.
+A self-hosted home lab built from the ground up on a borrowed PC — running a media server, photo backup system, network-wide ad blocking, remote access, and service monitoring.
 
-This started as a personal project to stop paying for streaming subscriptions and to give my cousins a persistent game server they could access without me being online. It grew into something I'm genuinely proud of — a real infrastructure project that taught me Linux, Docker, networking, bash scripting, and systems thinking in a way that no tutorial ever could.
+This started as a personal project to stop paying for streaming subscriptions. It grew into something I'm genuinely proud of, a real infrastructure project that taught me Linux, Docker, networking, bash scripting, and systems thinking in a way that no tutorial ever could.
 
 ---
 
@@ -12,7 +12,6 @@ I had a few specific problems:
 
 - **Media** — paying for multiple streaming services for content I already owned on DVD or could source myself. Wanted a self-hosted Plex/Jellyfin alternative that I fully controlled.
 - **Photos** — my girlfriend had 42,000 photos and videos on her phone with no backup strategy. Losing those was not acceptable. Didn't want to hand her memories to Google or Apple.
-- **Gaming** — my cousins and I play Arma 3 together. Every session required one of us to host, meaning the server died when that person left. Wanted a persistent dedicated server our group could access any time, even when I wasn't available.
 - **Privacy** — I wanted to own my infrastructure. My data, my hardware, my rules.
 
 These aren't abstract problems. They're real, they affected real people I care about, and solving them required building something real.
@@ -42,14 +41,6 @@ These aren't abstract problems. They're real, they affected real people I care a
 | Vaultwarden | Self-hosted Bitwarden password manager | 8181 |
 | TeamSpeak 3 | Voice comms server (TFAR mod support) | 9987 |
 
-### Arma 3 Dedicated Server
-Running natively (not in Docker) as a dedicated `steam` system user, managed by systemd. Features I built from scratch:
-
-- **Modset system** — switch between mod configurations via text files, persisted across reboots
-- **Headless client auto-management** — a bash monitor script that follows the server log in real time, automatically starts the AI headless client when players connect to an active mission, and stops it when the last player leaves
-- **Automated backups** — hourly cron job creates compressed archives of all campaign save data, retaining 7 days of history
-- **Mod management scripts** — add, remove, and update mods via simple bash scripts
-
 ---
 
 ## Architecture
@@ -73,13 +64,9 @@ Internet
               │     ├── Watchtower
               │     ├── Vaultwarden
               │     └── TeamSpeak 3
-              └── Arma 3 Server (systemd)
-                    ├── arma3server_x64 :2302
-                    ├── Headless Client (auto-managed)
-                    └── HC Monitor (hc_monitor.sh)
 
 Remote Access: Tailscale mesh VPN (all devices)
-Local DNS: Pi-hole (*.riot-homelab → 192.168.1.200)
+Local DNS: Pi-hole (*.riot-homelab)
 ```
 
 ---
@@ -88,28 +75,7 @@ Local DNS: Pi-hole (*.riot-homelab → 192.168.1.200)
 
 A few problems that weren't solved by copy-pasting a tutorial:
 
-**HC Monitor player counting** — Arma 3 server logs are noisy. The word "disconnected" contains "connected", so naive grep would double-count every disconnect. Antistasi mission scripts emit their own "Player disconnected" log lines that look identical to real server events but aren't. The solution was combining a regex negative lookbehind `[^dis]connected` with a pipe character filter `grep -v "|"` to cleanly separate real server events from mission script logs.
-
-**Arma 3 on Linux** — Workshop mods downloaded via SteamCMD are not guaranteed to have lowercase filenames. Linux is case-sensitive. Arma 3 on Linux requires all mod files to be lowercase or it refuses to load them. Built a script that recursively lowercases every filename in every mod directory.
-
 **Immich storage overflow** — 42,000 photos and videos exceeded available SSD space mid-sync. Solved by reformatting a spare 1TB external drive as ext4, mounting it persistently via fstab with the `nofail` flag, and live-migrating Immich's data directory by updating the Docker Compose volume mapping and restarting the container without data loss.
-
-**SteamCMD install location inconsistency** — `force_install_dir` in SteamCMD reliably sets the install path for `app_update` commands but inconsistently for `workshop_download_item` commands, causing mods to split across two directories. Solved by consolidating all workshop content post-download and building a modset system that references content by symlink rather than absolute path.
-
-**Arma 3 server monitoring** — Standard Uptime Kuma monitor types both failed. The Steam Game Server monitor requires SteamAPI which the dedicated server intentionally runs without — it returns `Steam API Key not found` regardless of server state. The TCP Port monitor fails because Arma 3 uses UDP not TCP — port 2302 refuses TCP connections even when the server is running. The solution was a Push monitor — a cron job that runs every minute, checks whether the arma3server systemd service is active, and sends a heartbeat to Uptime Kuma only when confirmed running. An additional lesson emerged: server-side scripts must use direct IP addresses rather than local DNS names. Pi-hole runs on the same machine it's resolving addresses for, causing split-horizon DNS issues where the server can't reliably resolve its own domain names.
-
----
-
-## Roadmap
-
-- [ ] DeSEC.io domain + Let's Encrypt SSL for proper HTTPS
-- [ ] Vaultwarden fully operational (requires HTTPS)
-- [ ] SSH hardening (key-based auth only)
-- [ ] File sharing solution (Filebrowser or Samba)
-- [ ] Discord bot in Python for cousin server management
-- [ ] GitHub Actions for automated deployment documentation
-- [ ] Phase 2: UCG-Max firewall, proper network segmentation, VLANs
-- [ ] Phase 3: Dedicated Unraid NAS, migrate all services, Arma 3 to Ubuntu VM
 
 ---
 
@@ -124,7 +90,7 @@ I came into this knowing Python and some programming fundamentals. I left with p
 - Debugging methodology (reading logs carefully, isolating variables, testing assumptions)
 - Infrastructure thinking (separation of concerns, failure modes, backup strategies)
 
-The most valuable thing wasn't any specific technology — it was learning to debug real systems under real pressure, with real users (my cousins) waiting for things to work.
+The most valuable thing wasn't any specific technology — it was learning to debug real systems under real pressure, with real users waiting for things to work.
 
 ---
 
@@ -138,14 +104,13 @@ See individual service READMEs in each subdirectory for setup instructions.
 - Ubuntu 24.04 LTS
 - Docker + Docker Compose
 - Tailscale account (free tier is sufficient)
-- Steam account (for Arma 3 server download)
 
 ---
 
 ## Stack
 
-`Ubuntu` `Docker` `Tailscale` `XRDP` `Jellyfin` `Immich` `Pi-hole` `Nginx Proxy Manager` `Portainer` `Uptime Kuma` `Glance` `Watchtower` `Vaultwarden` `TeamSpeak 3` `Bash` `systemd` `Python (planned)`
+`Ubuntu` `Docker` `Tailscale` `XRDP` `Jellyfin` `Immich` `Pi-hole` `Nginx Proxy Manager` `Portainer` `Uptime Kuma` `Glance` `Watchtower` `Vaultwarden` `TeamSpeak 3` `Bash` `systemd` `Python`
 
 ---
 
-*Built by Joey (Riot) · Phase 1 of 4 · Started May 2026*
+*Built by Joey (Riot) · Phase 1 of 4 · Started April 2026*
