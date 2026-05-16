@@ -23,23 +23,14 @@
 - XRDP remote desktop from Windows/Linux laptop
 - Docker installed and configured
 - Tailscale VPN for remote access
-- Jellyfin media server (Cosby Show S1 loaded)
-- Immich photo backup (girlfriend's 42k photos syncing)
+- Jellyfin media server
+- Immich photo backup
 - Pi-hole DNS ad blocking + local DNS records
 - Portainer Docker management UI
 - Nginx Proxy Manager reverse proxy
 - Watchtower automatic container updates
 - Uptime Kuma service monitoring
 - Glance dashboard
-- TeamSpeak 3 server (for TFAR mod)
-- Arma 3 dedicated server with:
-  - Full mod list including CUP suite
-  - Antistasi, Liberation RX, Impasse Total War missions
-  - Headless client with auto-start/stop monitor
-  - Modset switching system
-  - Automated hourly backups (7 days retention)
-  - Systemd services for auto-start on boot
-  - Campaign save working (AntistasiUltimate.vars)
 
 ### In Progress 🔄
 - Vaultwarden password manager (blocked on HTTPS)
@@ -48,12 +39,6 @@
 
 ### Pending 📋
 - SSH hardening (key-based auth, non-standard port)
-- BattlEye enable on Arma 3 server
-- TFAR mod added to Arma 3 server
-- Discord bot for cousin server management (Python)
-- Arma 3 server campaign save automated backup verification
-- Glance widget fixes (Pi-hole and NPM showing errors)
-- TeamSpeak added to Uptime Kuma and Glance
 - Immich machine learning disabled cleanly
 - Vaultwarden fully operational with HTTPS
 - Password audit — replace reused passwords with Vaultwarden generated ones
@@ -130,18 +115,6 @@
 
 ---
 
-## Future Ideas (No Timeline)
-- 7 Days to Die server (Ubuntu VM on Unraid)
-- Additional game servers as needed (all as VMs)
-- Raspberry Pi as always-on emergency access device
-- Home automation integration
-- Grafana + Prometheus for advanced monitoring
-- Self hosted Git server (Gitea)
-- Self hosted note taking (Obsidian sync or Joplin)
-- Nextcloud for full Google Drive replacement
-
----
-
 ## Tech Stack Reference
 
 | Category | Technology |
@@ -166,3 +139,4 @@
 | Game server mgmt | Custom bash scripts + systemd |
 | Bot language | Python + discord.py (planned) |
 | Version control | GitHub |
+| Project Management | Vikunja
